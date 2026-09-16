@@ -24,31 +24,43 @@
 source(here::here("code", "00_setup-environment.R"))
 
 ################################################################################.
-### 2. Read data ----
+### 2. Get up-to-date paths ----
+################################################################################.
+
+# SIMD Lookup Path
+simd_path <- get_simd_path(
+    selection_method = "modification_date")
+
+# Population Lookup Path (Health Boards)
+pop_path_hb <- get_pop_path(
+  type = "HB", 
+  selection_method = "modification_date")
+
+# Population Lookup Path (HSCPs)
+pop_path_hscp <- get_pop_path(
+  type = "HSCP", 
+  selection_method = "modification_date")
+
+# Population Lookup Path (SIMD)
+pop_path_simd <- get_pop_path(
+  type = "DataZone", 
+  selection_method = "modification_date")
+
+################################################################################.
+### 3. Read data ----
 ################################################################################.
 
 # SIMD Lookup
-simd_lookup <- read_rds(
-  get_simd_path(
-    selection_method = "modification_date"))
+simd_lookup <- read_rds(simd_path)
 
 # Population Lookup (Health Boards)
-pop_lookup_hb <- read_rds(
-  get_pop_path(
-    type = "HB", 
-    selection_method = "modification_date"))
+pop_lookup_hb <- read_rds(pop_path_hb)
 
 # Population Lookup (HSCPs)
-pop_lookup_hscp <- read_rds(
-  get_pop_path(
-    type = "HSCP", 
-    selection_method = "modification_date"))
+pop_lookup_hscp <- read_rds(pop_path_hscp)
 
 # Population Lookup (SIMD)
-pop_lookup_simd <- read_rds(
-  get_pop_path(
-    type = "DataZone", 
-    selection_method = "modification_date"))
+pop_lookup_simd <- read_rds(pop_path_simd)
 
 # Expected Diagnoses
 exp_df <- read_csv(get_exp_diagnoses_path())
@@ -57,7 +69,7 @@ exp_df <- read_csv(get_exp_diagnoses_path())
 ESP13_df <- phsopendata::get_resource(res_id = "29ce4cda-a831-40f4-af24-636196e05c1a")
 
 ################################################################################.
-### 3. Process SIMD Lookup ----
+### 4. Process SIMD Lookup ----
 ################################################################################.
 
 simd_lookup <- simd_lookup %>% 
@@ -72,7 +84,7 @@ simd_lookup <- simd_lookup %>%
   )
 
 ################################################################################.
-### 4. Process Population Lookups ----
+### 5. Process Population Lookups ----
 ################################################################################.
 
 # Helper function to get the name of the latest geography/SIMD column
@@ -143,14 +155,24 @@ clean_pop_lookup <- function(pop_lookup){
     )
   
   # Add missing years until the current year by duplicating the latest year in pop_lookup_simd
-  while(max(pop_lookup$fy) < fy){
-    pop_lookup %<>% 
-      rbind((pop_lookup %>% 
-               filter(fy == max(fy)) %>% 
-               mutate(fy = max(fy) + 1)))
-    message("Population data from ", max(pop_lookup$fy), " duplicated for ", max(pop_lookup$fy) + 1)
+  pop_lookup$actual_year <- pop_lookup$fy
+  start_fy <- max(pop_lookup$fy)
+  while(max(pop_lookup$fy) < as.numeric(fy)) {
+    pop_lookup %<>%
+      rbind(
+        pop_lookup %>% 
+          filter(fy == max(fy)) %>%
+          mutate(fy = max(fy) + 1, 
+                 actual_year = start_fy))
   }
-  
+  end_fy <- max(pop_lookup$fy)
+  if (end_fy > start_fy) {
+    message(
+      "Population data from ", start_fy,
+      " carried for ",
+      paste((start_fy + 1):end_fy, collapse = ", "))
+  }
+ 
   # Convert fy column from YYYY to "YYYY/YY"
   pop_lookup <- pop_lookup %>%
     mutate(fy = paste0(fy, "/", sprintf("%02d", (fy + 1) %% 100)))
@@ -192,7 +214,7 @@ pop_lookup_simd <- pop_lookup_simd %>%
   clean_pop_lookup()
 
 ################################################################################.
-### 5. Process Expected Diagnoses ----
+### 6. Process Expected Diagnoses ----
 ################################################################################.
 
 # Expected Diagnoses data
@@ -203,7 +225,7 @@ exp_df <- exp_df %>%
   select(-health_board) 
 
 ################################################################################.
-### 6. Process ESP ----
+### 7. Process ESP ----
 ################################################################################.
 
 # European Standard Population
@@ -217,8 +239,57 @@ ESP13_df <- ESP13_df %>%
   rename(age_grp = age_group)
 
 ################################################################################.
-### 7. Save data ----
+### 8. Lookup Information (SIMD and populations) ----
 ################################################################################.
+
+# Helper function to get lookup information
+create_info_row <- function(path, lookup, type, fy){
+  if("actual_year" %in% names(lookup)) {
+    data_from <- max(lookup$actual_year, na.rm = TRUE)
+    carried_to <- paste((data_from + 1):as.numeric(fy), collapse = ", ")
+  } else {
+    data_from <- NA
+    carried_to <- NA
+  }
+  info <- fs::file_info(path) %>%
+    select(path, size, modification_time) %>%
+    mutate(
+      lookup = type,
+      data_from = data_from,
+      carried_to = carried_to
+    )
+  info
+}
+
+# Lookup information
+lookup_info <- bind_rows(
+  create_info_row(simd_path, simd_lookup, "simd_geography", fy),
+  create_info_row(pop_path_hb, pop_lookup_hb, "hb_population", fy),
+  create_info_row(pop_path_hscp, pop_lookup_hscp, "hscp_population", fy),
+  create_info_row(pop_path_simd, pop_lookup_simd, "simd_population", fy)
+)
+
+################################################################################.
+### 9. Save data ----
+################################################################################.
+
+# Save lookup information to MI data path
+lookup_info %>% 
+  write_file(path = get_mi_data_path(
+    type = "lookup_info", 
+    ext = "csv", 
+    fy = fy,
+    qt = qt,
+    test_output = test_output,
+    check_mode = "write",
+    create_dir = TRUE))
+
+# Save lookup information to lookup path
+lookup_info %>% 
+  write_file(path = get_lookup_path(
+    type = "lookup_info", 
+    check_mode = "write",
+    create_dir = TRUE))
 
 # Save SIMD lookup
 simd_lookup %>% 

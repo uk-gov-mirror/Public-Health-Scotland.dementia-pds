@@ -38,7 +38,7 @@ pds <- readr::read_csv(get_national_data_path(fy, qt), col_types = cols(.default
   janitor::clean_names() %>%
   
   # Convert dates from character to date format
-  dplyr::mutate(dplyr::across(tidyselect::contains("date"), lubridate::ymd)) %>%
+  dplyr::mutate(dplyr::across(tidyselect::contains("date"), ~ lubridate::ymd(na_if(.x, "9999-09-09")))) %>%
   
   # Pad CHI Number to 10 digits
   dplyr::mutate(chi_number = phsmethods::chi_pad(chi_number)) %>%

@@ -73,7 +73,7 @@ output <- bind_rows(
 ### 4 - Save data ----
 ################################################################################.
 
-pds %>% 
+output %>% 
   write_file(path = get_mi_data_path(
     type = "final_data", 
     ext = "rds", 
