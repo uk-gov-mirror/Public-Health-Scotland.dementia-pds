@@ -19,23 +19,38 @@ source(here::here("code", "00_setup-environment.R"))
 ### 1 - Read data and select columns ----
 ################################################################################.
 
+# Read cleaned data (output from 01_data-preparation.R)
 pds_dementia_index <- read_rds(get_mi_data_path(
   type = "clean_data", 
   ext = "rds", 
   fy = fy,
   qt = qt,
-  test_output = test_output)) %>% 
+  test_output = FALSE)) %>% 
+  # Select required columns
   select(
     chi_number, date_of_birth, sex, ethnic_group, postcode, 
     dementia_diagnosis_confirmed_date, subtype_of_dementia, health_board) %>%
-  mutate(health_board = str_sub(health_board, 3, -1))
+  mutate(
+    # Remove health board codes
+    health_board = str_sub(health_board, 3, -1),
+    # Format postcode
+    postcode = format_postcode(postcode))
 
 ################################################################################.
 ### 2 - Save data ----
 ################################################################################.
 
+# Year in yyyy_yy format
 year <- paste0(fy, "_", substr(as.character(as.numeric(fy) + 1), 3, 4))
+
+# Dementia Index Extract Folder
 filepath <- "/conf/dementia/A&I/IR-PQ-FOI/IR2025-00094 Dementia Index Extract/output/"
+
+# Dementia Index Extract File name
 filename <- paste0("pds_dementia_index_extract-", year, "-Q", qt)
+
+# Write as .rds
 write_rds(pds_dementia_index, paste0(filepath, filename, ".rds"))
+
+# Write as .csv
 write.csv(pds_dementia_index, paste0(filepath, filename, ".csv"))
