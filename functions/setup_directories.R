@@ -226,7 +226,7 @@ get_mi_data_path <- function(type = c("clean_data",
   )
     
   # Get the file name
-  file_name <- dplyr::case_match(
+  file_name <- dplyr::recode_values(
     type,
     "clean_data" ~ stringr::str_glue("{fy}-{qt}_clean-data"),
     "dupe_data" ~ stringr::str_glue("{fy}-{qt}_dupes"),
@@ -354,7 +354,7 @@ get_lookup_path <- function(type = c("esp",
   lookup_dir <- fs::path(get_mi_dir(), "lookups")
   
   # Get the file name
-  file_name <- dplyr::case_match(
+  file_name <- dplyr::recode_values(
     type,
     "esp" ~ "esp_lookup.rds",
     "exp" ~ "expected_diagnoses_lookup.rds",
@@ -776,7 +776,7 @@ get_pub_output_path <- function(output_name = c("pub_summary",
   )
   
   # Get the file name
-  file_name <- dplyr::case_match(
+  file_name <- dplyr::recode_values(
     output_name,
     "pub_summary" ~ stringr::str_glue("{pub_date}_dementia-pds_summary.docx"),
     "pub_report" ~ stringr::str_glue("{pub_date}_dementia-pds_report.docx"),
@@ -855,7 +855,7 @@ get_pub_figures_path <- function(type = c("c1",
   )
   
   # Get the file name
-  file_name <- dplyr::case_match(
+  file_name <- dplyr::recode_values(
     type,
     "c1" ~ stringr::str_glue("{pub_date}_incidence-hb.png"),
     "c2" ~ stringr::str_glue("{pub_date}_12-months-hb.png"),
@@ -1195,7 +1195,8 @@ get_linkage_files_dir <- function(){
 
 get_simd_path <- function(check_mode = "read",
                           selection_method = "modification_date",
-                          recurse = FALSE) {
+                          recurse = FALSE,
+                          choose = FALSE) {
   
   # Construct the directory path
   simd_dir <- fs::path(get_linkage_files_dir(), "Deprivation")
@@ -1210,7 +1211,8 @@ get_simd_path <- function(check_mode = "read",
     create_dir = FALSE,
     file_name_regexp = file_name_regexp,
     selection_method = selection_method,
-    recurse = recurse
+    recurse = recurse,
+    choose = choose
   )
   
   return(simd_path)
@@ -1262,7 +1264,8 @@ get_simd_path <- function(check_mode = "read",
 get_pop_path <- function(type = c("HB", "HSCP", "DataZone"),
                          check_mode = "read",
                          selection_method = "modification_date",
-                         recurse = FALSE){
+                         recurse = FALSE,
+                         choose = FALSE){
   
   # Validate arguments
   type <- match.arg(type)
@@ -1282,7 +1285,8 @@ get_pop_path <- function(type = c("HB", "HSCP", "DataZone"),
     create_dir = FALSE,
     file_name_regexp = file_name_regexp,
     selection_method = selection_method,
-    recurse = recurse
+    recurse = recurse,
+    choose = choose
   )
   
   return(pop_path)
