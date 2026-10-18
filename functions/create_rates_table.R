@@ -39,7 +39,16 @@ create_rates_table <- function(pds, population_df, ESP13_df, demographic = c(), 
     # Remove original sex column and duplicate rows (necessary for age standardisation)
     select(-sex) %>% distinct() %>%
     # Create a column that only contains ESP for age groups above the age cutoff
-    mutate(filtered_esp = ifelse(as.numeric(str_extract(age_grp, "^\\d+")) >= age_cutoff, european_standard_population, 0))
+    mutate(
+      age_start = as.numeric(str_extract(age_grp, "^\\d+")),
+      age_end = as.numeric(str_extract(age_grp, "(?<=-)\\d+")),
+      proportion = case_when(
+        age_start >= age_cutoff ~ 1,
+        age_end < age_cutoff ~ 0,
+        TRUE ~ (age_end - age_cutoff + 1) / (age_end - age_start + 1)
+      ),
+      filtered_esp = european_standard_population * proportion
+    )
   
   # 4. Join data and calculate rates
   rates_df <- full_join(pds, population, by = c("fy", "geog", "name", "age_grp", "sex_dummy", demographic)) %>%
@@ -52,10 +61,9 @@ create_rates_table <- function(pds, population_df, ESP13_df, demographic = c(), 
       # Crude rate using all referrals and population estimates over 65 (per 10,000)
       old_rate = (sum(all_referrals, na.rm = TRUE) / sum(over_65_population, na.rm = TRUE)) * 10000,
       .groups = "drop")
-    
-    return(rates_df)
+  
+  return(rates_df)
 }
-
 # # Function to create a table showing referral rates per 10000 population
 # create_rates_table <- function(pds, population_df, ESP13_df, standardisation = "age-sex", age_cutoff = 65, demographic = c()){
 #   
