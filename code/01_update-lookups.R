@@ -44,8 +44,9 @@ pop_path_hscp <- get_pop_path(
 # Population Lookup Path (SIMD)
 pop_path_simd <- get_pop_path(
   type = "DataZone", 
-  selection_method = "modification_date")
-
+  selection_method = "modification_date",
+  choose = TRUE)
+4
 ################################################################################.
 ### 3. Read data ----
 ################################################################################.
@@ -89,7 +90,7 @@ simd_lookup <- simd_lookup %>%
 
 # Helper function to get the name of the latest geography/SIMD column
 get_geog_col <- function(data, type){
-  pattern <- dplyr::case_match(
+  pattern <- dplyr::recode_values(
     type,
     "hb"   ~ "^hb\\d{4}name$",
     "hscp" ~ "^hscp\\d{4}name$",
@@ -155,16 +156,17 @@ clean_pop_lookup <- function(pop_lookup){
     )
   
   # Add missing years until the current year by duplicating the latest year in pop_lookup_simd
-  pop_lookup$actual_year <- pop_lookup$fy
+  pop_lookup$duplicated_year <- FALSE
   start_fy <- max(pop_lookup$fy)
-  while(max(pop_lookup$fy) < as.numeric(fy)) {
-    pop_lookup %<>%
-      rbind(
-        pop_lookup %>% 
-          filter(fy == max(fy)) %>%
-          mutate(fy = max(fy) + 1, 
-                 actual_year = start_fy))
+  
+  while(max(pop_lookup$fy) < as.numeric(fy)){
+    pop_lookup %<>% rbind((
+      pop_lookup %>% 
+        filter(fy == max(fy)) %>% 
+        mutate(fy = max(fy) + 1,
+               duplicated_year = TRUE)))
   }
+  
   end_fy <- max(pop_lookup$fy)
   if (end_fy > start_fy) {
     message(
@@ -242,11 +244,40 @@ ESP13_df <- ESP13_df %>%
 ### 8. Lookup Information (SIMD and populations) ----
 ################################################################################.
 
+# # Helper function to get lookup information
+# create_info_row <- function(path, lookup, type, fy){
+#   if("actual_year" %in% names(lookup)) {
+#     data_from <- max(lookup$actual_year, na.rm = TRUE)
+#     carried_to <- paste((data_from + 1):as.numeric(fy), collapse = ", ")
+#   } else {
+#     data_from <- NA
+#     carried_to <- NA
+#   }
+#   info <- fs::file_info(path) %>%
+#     select(path, size, modification_time) %>%
+#     mutate(
+#       lookup = type,
+#       data_from = data_from,
+#       carried_to = carried_to
+#     )
+#   info
+# }
+# 
+# # Lookup information
+# lookup_info <- bind_rows(
+#   create_info_row(simd_path, simd_lookup, "simd_geography", fy),
+#   create_info_row(pop_path_hb, pop_lookup_hb, "hb_population", fy),
+#   create_info_row(pop_path_hscp, pop_lookup_hscp, "hscp_population", fy),
+#   create_info_row(pop_path_simd, pop_lookup_simd, "simd_population", fy)
+# )
+
 # Helper function to get lookup information
-create_info_row <- function(path, lookup, type, fy){
-  if("actual_year" %in% names(lookup)) {
-    data_from <- max(lookup$actual_year, na.rm = TRUE)
-    carried_to <- paste((data_from + 1):as.numeric(fy), collapse = ", ")
+create_info_row <- function(path, lookup, type){
+  if(grepl("population", type)) {
+    actual_year_list <- as.integer(sub("/.*", "", unique((lookup %>% filter(duplicated_year == FALSE))$fy)))
+    data_from <- max(actual_year_list)
+    duplicated_year_list <- unique((lookup %>% filter(duplicated_year == TRUE))$fy)
+    carried_to <- glue::glue_collapse(duplicated_year_list, sep = ", ", last = " and ")
   } else {
     data_from <- NA
     carried_to <- NA
@@ -263,10 +294,10 @@ create_info_row <- function(path, lookup, type, fy){
 
 # Lookup information
 lookup_info <- bind_rows(
-  create_info_row(simd_path, simd_lookup, "simd_geography", fy),
-  create_info_row(pop_path_hb, pop_lookup_hb, "hb_population", fy),
-  create_info_row(pop_path_hscp, pop_lookup_hscp, "hscp_population", fy),
-  create_info_row(pop_path_simd, pop_lookup_simd, "simd_population", fy)
+  create_info_row(simd_path, simd_lookup, "simd_geography"),
+  create_info_row(pop_path_hb, pop_lookup_hb, "hb_population"),
+  create_info_row(pop_path_hscp, pop_lookup_hscp, "hscp_population"),
+  create_info_row(pop_path_simd, pop_lookup_simd, "simd_population")
 )
 
 ################################################################################.

@@ -155,7 +155,7 @@ last_full_year <- full_years[length(full_years)]
 exempt_reasons <- c("03", "04", "05", "06")
 
 ################################################################################.
-### 6 - Set output/knitr options for Markdown ----
+### 5 - Set output/knitr options for Markdown ----
 ################################################################################.
 
 # Disable scientific notation
